@@ -325,7 +325,7 @@
 
         <div class="admin-panel" id="adminPanel" aria-label="管理者メニュー">
           <h2>管理者メニュー</h2>
-          <p class="fb-note" id="adminAuthState">合言葉で開きました（子どものいたずら防止用）</p>
+          <p class="fb-note" id="adminAuthState">合言葉で開きました</p>
           <div class="row">
             <button type="button" id="adminLockBtn">閉じてロックする</button>
           </div>
@@ -358,7 +358,7 @@
     <div class="modal-backdrop" id="passphraseModal">
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="passphraseModalTitle">
         <h2 id="passphraseModalTitle">合言葉を入力してください</h2>
-        <p>子どものいたずら防止のため、管理者メニューは合言葉で開きます。大人の方だけ入力してください。</p>
+        <p>管理者メニューは合言葉で開きます。合言葉を入力してください。</p>
         <input id="passphraseInput" type="text" autocomplete="off" placeholder="合言葉を入力" />
         <p class="err" id="passphraseErr"></p>
         <button type="button" class="go" id="passphraseGo">開く</button>
@@ -373,9 +373,9 @@
       (function () {
         "use strict";
 
-        var CENTER = [33.2299311, 131.6198944]; // 大分県大分市錦町３丁目
-        // 管理者メニューは合言葉で開く（子どものいたずら防止用）。
-        // PINコードは廃止し、合言葉のみで開けるようにする。
+        // 大分県大分市錦町３丁目の中心（1〜7番地の広がりの中央。従来の座標は南西端の6番地付近で、中心が南西にずれていた）
+        var CENTER = [33.23085, 131.62064];
+        // 管理者メニューは合言葉で開く。PINコードは廃止し、合言葉のみで開けるようにする。
         var ADMIN_PASSPHRASE = "長浜小学校";
         var adminUnlocked = false;
 
@@ -474,7 +474,7 @@
           var el = $("adminAuthState");
           if (!el) return;
           el.textContent = adminUnlocked
-            ? "合言葉で開きました（子どものいたずら防止用）"
+            ? "合言葉で開きました"
             : "合言葉が未確認です";
         }
 
@@ -535,10 +535,12 @@
             showError("地図の読み込みに失敗しました。「最新情報に更新」ボタンで読み直してください。");
             return;
           }
-          // 周囲約200メートル＋少し余裕を持たせた表示範囲
+          // 移動可能範囲：錦町３丁目＋周囲約200メートルの全域に十字の中心を合わせられるよう、
+          // 対象範囲より一回り広く取る。狭すぎると画面の端が先に範囲へ当たってしまい、
+          // 北側など端の地点を中心にできず、フラグが立てられなくなる。
           var bounds = L.latLngBounds(
-            [CENTER[0] - 0.0027, CENTER[1] - 0.0033],
-            [CENTER[0] + 0.0027, CENTER[1] + 0.0033]
+            [CENTER[0] - 0.0060, CENTER[1] - 0.0070],
+            [CENTER[0] + 0.0060, CENTER[1] + 0.0070]
           );
           map = L.map("map", {
             center: CENTER,
@@ -957,7 +959,7 @@
             setTimeout(function () { $("nameSaved").textContent = ""; }, 3000);
           });
 
-          /* 管理者（合言葉で開く — 子どものいたずら防止用、PINは廃止） */
+          /* 管理者（合言葉で開く、PINは廃止） */
           function openAdmin() {
             $("passphraseModal").classList.remove("open");
             $("adminTitleInput").value = $("pageTitle").textContent;
