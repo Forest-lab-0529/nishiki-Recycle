@@ -1,0 +1,1142 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>錦町３丁目　資源回収！（11/27）</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+      :root {
+        --bg: #f4f6f1;
+        --surface: #ffffff;
+        --surface-2: #eef1e8;
+        --ink: #22301f;
+        --ink-soft: #5a6a55;
+        --line: #d7ddcd;
+        --accent: #2e7d46;
+        --accent-ink: #ffffff;
+        --danger: #c62f2f;
+        --warn-bg: #fdecec;
+        --warn-line: #f2b8b8;
+        --warn-ink: #8f1d1d;
+        --car-bg: #fdf1e0;
+        --car-line: #f0cf9e;
+        --car-ink: #7c4a08;
+        --shadow: 0 2px 10px rgba(34, 48, 31, .14);
+        --check1: #2e9e5b;
+        --check2: #2f6fd0;
+        --car: #e07f1f;
+        --found: #d84f7e;
+        --help: #d23b3b;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #161a14;
+          --surface: #21261e;
+          --surface-2: #2a3026;
+          --ink: #e8eee1;
+          --ink-soft: #a9b69e;
+          --line: #3c4536;
+          --accent: #3f9e5f;
+          --warn-bg: #3d1f1f;
+          --warn-line: #6e3535;
+          --warn-ink: #f3c1c1;
+          --car-bg: #3a2c17;
+          --car-line: #6e5527;
+          --car-ink: #f0d3a0;
+          --shadow: 0 2px 10px rgba(0, 0, 0, .45);
+        }
+      }
+      * { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Noto Sans JP", sans-serif;
+        line-height: 1.55;
+      }
+      button, select, input { font: inherit; color: inherit; }
+      button, [role="button"], select, input:not([type="checkbox"], [type="radio"]) { min-height: 2.5rem; }
+      button { cursor: pointer; }
+      .wrap { max-width: 640px; margin: 0 auto; padding: 14px 14px 40px; }
+
+      header h1 {
+        font-size: 1.45rem;
+        line-height: 1.3;
+        margin: 4px 0 2px;
+        letter-spacing: .01em;
+      }
+      .greeting {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--accent);
+        margin: 2px 0 12px;
+      }
+
+      /* フィルター（画面上部） */
+      .filter-label { font-size: .82rem; font-weight: 700; color: var(--ink-soft); margin: 0 0 6px; }
+      .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+      .chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        border: 1.5px solid var(--line);
+        background: var(--surface);
+        border-radius: 999px;
+        padding: 6px 12px;
+        font-size: .88rem; font-weight: 600;
+        min-height: 2.5rem;
+      }
+      .chip .dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+      .chip .count {
+        background: var(--surface-2); border-radius: 999px;
+        padding: 0 7px; font-size: .78rem; font-weight: 700;
+      }
+      .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--accent); }
+
+      /* 依頼バナー（地図の上） */
+      .alerts { display: grid; gap: 8px; margin-bottom: 10px; }
+      .alerts:empty { margin-bottom: 0; }
+      .alert {
+        display: flex; align-items: stretch; gap: 0;
+        border-radius: 10px; overflow: hidden;
+        border: 1.5px solid; text-align: left; width: 100%;
+        padding: 0; background: var(--surface);
+      }
+      .alert .alert-main {
+        flex: 1; border: 0; background: transparent; text-align: left;
+        padding: 10px 12px; min-height: 3rem;
+      }
+      .alert .alert-title { font-weight: 800; font-size: 1rem; display: block; }
+      .alert .alert-meta { font-size: .8rem; opacity: .85; display: block; }
+      .alert .alert-done {
+        flex: none; border: 0; border-left: 1.5px solid;
+        padding: 8px 14px; font-weight: 800; font-size: .92rem;
+        background: transparent; min-width: 7.2em;
+      }
+      .alert-help { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-ink); }
+      .alert-help .alert-done { border-color: var(--warn-line); color: var(--warn-ink); }
+      .alert-car { background: var(--car-bg); border-color: var(--car-line); color: var(--car-ink); }
+      .alert-car .alert-done { border-color: var(--car-line); color: var(--car-ink); }
+
+      /* 地図 */
+      .map-shell { position: relative; border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); border: 1px solid var(--line); }
+      #map { height: 52vh; min-height: 330px; width: 100%; background: #dfe4da; z-index: 0; }
+      .crosshair { position: absolute; inset: 0; pointer-events: none; z-index: 650; }
+      .crosshair::before, .crosshair::after {
+        content: ""; position: absolute; background: rgba(198, 47, 47, .75);
+      }
+      .crosshair::before { left: 50%; top: 0; bottom: 0; width: 2px; transform: translateX(-1px); }
+      .crosshair::after { top: 50%; left: 0; right: 0; height: 2px; transform: translateY(-1px); }
+      .crosshair .ring {
+        position: absolute; left: 50%; top: 50%; width: 34px; height: 34px;
+        transform: translate(-50%, -50%);
+        border: 2.5px solid rgba(198, 47, 47, .85); border-radius: 50%;
+        background: rgba(255,255,255,.18);
+      }
+      .map-error {
+        position: absolute; top: 10px; left: 10px; right: 10px; z-index: 900;
+        background: #b3261e; color: #fff; font-weight: 700; font-size: .92rem;
+        border-radius: 8px; padding: 10px 12px; box-shadow: var(--shadow);
+        display: none;
+      }
+      .map-error.show { display: block; }
+      .refresh-btn {
+        position: absolute; top: 10px; right: 10px; z-index: 1000;
+        background: var(--surface); color: var(--ink);
+        border: 1.5px solid var(--line); border-radius: 8px;
+        font-weight: 700; font-size: .85rem; padding: 6px 12px;
+        box-shadow: var(--shadow); min-height: 2.5rem;
+      }
+      .map-error.show ~ .refresh-btn { top: 64px; }
+      .map-note {
+        position: absolute; left: 10px; bottom: 10px; z-index: 900;
+        background: color-mix(in srgb, var(--surface) 88%, transparent);
+        border: 1px solid var(--line); border-radius: 6px;
+        font-size: .72rem; color: var(--ink-soft); padding: 2px 8px; pointer-events: none;
+      }
+
+      /* フラグのピン */
+      .pin {
+        width: 30px; height: 30px; border-radius: 50% 50% 50% 4px;
+        transform: rotate(-45deg);
+        border: 2.5px solid #fff;
+        box-shadow: 0 2px 6px rgba(0,0,0,.35);
+        display: flex; align-items: center; justify-content: center;
+      }
+      .pin span {
+        transform: rotate(45deg);
+        color: #fff; font-weight: 800; font-size: .82rem; line-height: 1;
+      }
+      .pin-wrap { background: transparent; border: 0; }
+
+      /* フラグボタン（地図の下） */
+      .flag-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 12px; }
+      .flag-btn {
+        border: 0; border-radius: 10px; color: #fff;
+        font-weight: 800; font-size: .98rem; padding: 12px 8px;
+        min-height: 3.4rem; box-shadow: var(--shadow);
+        display: flex; align-items: center; justify-content: center; gap: 7px;
+      }
+      .flag-btn:active { transform: translateY(1px); }
+      .flag-btn .n { background: rgba(255,255,255,.25); border-radius: 999px; padding: 0 8px; font-size: .8rem; }
+      .flag-btn.help { grid-column: 1 / -1; }
+
+      .howto {
+        background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+        padding: 12px 14px; margin-top: 14px; font-size: .93rem;
+      }
+      .howto h2 { font-size: .95rem; margin: 0 0 6px; }
+      .howto ul { margin: 0; padding-left: 1.25em; }
+      .howto li { margin: 3px 0; }
+
+      /* 自分のフラグ一覧 */
+      section.list-block { margin-top: 22px; }
+      section.list-block h2 { font-size: 1.05rem; margin: 0 0 8px; }
+      .empty-note { color: var(--ink-soft); font-size: .92rem; background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; padding: 14px; text-align: center; }
+      .flag-row {
+        display: flex; align-items: center; gap: 9px;
+        background: var(--surface); border: 1px solid var(--line);
+        border-radius: 10px; padding: 9px 10px; margin-bottom: 8px;
+      }
+      .badge {
+        flex: none; width: 30px; height: 30px; border-radius: 50%;
+        color: #fff; font-weight: 800; display: flex; align-items: center; justify-content: center;
+        font-size: .9rem;
+      }
+      .flag-row select {
+        flex: 1; min-width: 0; border: 1.5px solid var(--line); border-radius: 8px;
+        background: var(--surface); padding: 6px 8px; font-weight: 600;
+      }
+      .flag-row .meta { font-size: .75rem; color: var(--ink-soft); white-space: nowrap; }
+      .del-btn {
+        flex: none; border: 1.5px solid var(--warn-line); color: var(--danger);
+        background: transparent; border-radius: 8px; font-weight: 700;
+        padding: 6px 10px; font-size: .85rem;
+      }
+
+      /* 名前・管理者（ページ下部） */
+      .bottom-block { margin-top: 26px; border-top: 1.5px solid var(--line); padding-top: 16px; display: grid; gap: 14px; }
+      .name-row label { display: block; font-size: .85rem; font-weight: 700; color: var(--ink-soft); margin-bottom: 5px; }
+      .name-row .row { display: flex; gap: 8px; }
+      .name-row input {
+        flex: 1; min-width: 0; border: 1.5px solid var(--line); border-radius: 8px;
+        background: var(--surface); padding: 8px 10px;
+      }
+      .name-row button, .admin-open-btn {
+        border: 1.5px solid var(--line); background: var(--surface);
+        border-radius: 8px; font-weight: 700; padding: 8px 14px;
+      }
+      .admin-panel {
+        background: var(--surface); border: 1.5px solid var(--line);
+        border-radius: 10px; padding: 14px; display: none;
+      }
+      .admin-panel.open { display: block; }
+      .admin-panel h2 { font-size: 1rem; margin: 0 0 10px; }
+      .admin-panel h3 { font-size: .9rem; margin: 16px 0 6px; }
+      .admin-panel .row { display: flex; gap: 8px; }
+      .admin-panel input {
+        flex: 1; min-width: 0; border: 1.5px solid var(--line); border-radius: 8px;
+        background: var(--surface); padding: 8px 10px;
+      }
+      .admin-panel button { border: 1.5px solid var(--line); background: var(--surface-2); border-radius: 8px; font-weight: 700; padding: 8px 14px; }
+      .admin-panel .clear-btn { border-color: var(--warn-line); color: var(--danger); width: 100%; margin-top: 6px; }
+      .admin-panel .clear-btn.confirm { background: var(--danger); color: #fff; border-color: var(--danger); }
+      .admin-flag { font-size: .88rem; padding: 7px 0; border-bottom: 1px solid var(--line); display: flex; gap: 8px; align-items: baseline; }
+      .admin-flag:last-child { border-bottom: 0; }
+      .admin-flag .t { font-weight: 700; }
+      .admin-flag .m { color: var(--ink-soft); font-size: .78rem; }
+      .saved-note { font-size: .82rem; color: var(--accent); font-weight: 700; min-height: 1.2em; }
+
+      /* モーダル */
+      .modal-backdrop {
+        position: fixed; inset: 0; z-index: 2000;
+        background: rgba(18, 24, 16, .55);
+        display: none; align-items: center; justify-content: center; padding: 18px;
+      }
+      .modal-backdrop.open { display: flex; }
+      .modal {
+        background: var(--surface); color: var(--ink);
+        border-radius: 14px; padding: 22px 20px; width: 100%; max-width: 380px;
+        box-shadow: var(--shadow);
+      }
+      .modal h2 { margin: 0 0 6px; font-size: 1.15rem; }
+      .modal p { margin: 0 0 12px; font-size: .92rem; color: var(--ink-soft); }
+      .modal input {
+        width: 100%; border: 1.5px solid var(--line); border-radius: 8px;
+        background: var(--surface); padding: 10px; margin-bottom: 12px; font-size: 1.05rem;
+      }
+      .modal .go {
+        width: 100%; border: 0; border-radius: 9px; background: var(--accent);
+        color: var(--accent-ink); font-weight: 800; padding: 12px; font-size: 1rem;
+      }
+      .modal .err { color: var(--danger); font-size: .85rem; font-weight: 700; min-height: 1.2em; margin: 0 0 8px; }
+      .modal .cancel {
+        width: 100%; border: 0; background: transparent; color: var(--ink-soft);
+        font-weight: 700; padding: 10px; margin-top: 4px;
+      }
+      .leaflet-container { font-family: inherit; }
+
+      /* 共有の接続状態 */
+      .sync-status {
+        display: flex; align-items: center; gap: 7px;
+        font-size: .85rem; font-weight: 700;
+        border: 1.5px solid var(--line); border-radius: 999px;
+        background: var(--surface); padding: 6px 12px; margin: 0 0 12px;
+      }
+      .sync-status .sdot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: #9aa48f; }
+      .sync-status.on { border-color: var(--accent); }
+      .sync-status.on .sdot { background: var(--accent); }
+      .sync-status.err { border-color: var(--warn-line); background: var(--warn-bg); color: var(--warn-ink); }
+      .sync-status.err .sdot { background: var(--danger); }
+
+      /* Firebase設定（管理者メニュー内） */
+      .fb-steps { font-size: .88rem; margin: 0 0 8px; padding-left: 1.3em; }
+      .fb-steps li { margin: 4px 0; }
+      .fb-note { font-size: .82rem; color: var(--ink-soft); margin: 6px 0 0; }
+      .admin-panel textarea {
+        width: 100%; border: 1.5px solid var(--line); border-radius: 8px;
+        background: var(--surface); padding: 8px 10px; font: inherit;
+        font-size: .82rem; min-height: 7.5em; resize: vertical;
+      }
+      .admin-panel pre {
+        background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px;
+        padding: 8px 10px; font-size: .75rem; overflow-x: auto; margin: 6px 0 0;
+        white-space: pre-wrap; word-break: break-all;
+      }
+      .fb-connect-btn { width: 100%; margin-top: 8px; }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <header>
+        <h1 id="pageTitle">錦町３丁目　資源回収！（11/27）</h1>
+        <p class="greeting" id="greeting">今日はよろしくね！</p>
+      </header>
+
+      <!-- みんなとの共有状態 -->
+      <p class="sync-status" id="syncStatus" role="status"><span class="sdot" aria-hidden="true"></span><span id="syncStatusText">共有の準備中…</span></p>
+
+      <!-- フィルター（画面上部） -->
+      <p class="filter-label">フラグの種類で絞り込み</p>
+      <div class="filters" id="filters" role="group" aria-label="フラグのフィルター"></div>
+
+      <!-- 応援・車回収の依頼バナー -->
+      <div class="alerts" id="alerts" aria-live="polite"></div>
+
+      <!-- 地図 -->
+      <div class="map-shell" id="mapShell">
+        <div id="map" aria-label="錦町３丁目と周囲約200メートルの地図"></div>
+        <div class="crosshair" aria-hidden="true"><div class="ring"></div></div>
+        <div class="map-error" id="mapError" role="alert"></div>
+        <button type="button" class="refresh-btn" id="refreshBtn">最新情報に更新</button>
+        <div class="map-note">国土地理院地図を表示中</div>
+      </div>
+
+      <!-- フラグボタン（地図の下） -->
+      <div class="flag-buttons" id="flagButtons"></div>
+
+      <!-- 説明 -->
+      <div class="howto">
+        <h2>使い方</h2>
+        <ul>
+          <li>地図を動かして十字の中心を合わせ、ボタンを押すと、その中心点にフラグが立ちます。</li>
+          <li>立てたフラグは、そのまま消さなくて大丈夫です。</li>
+          <li>間違えて立ててしまったフラグは、画面下部の「自分のフラグ」一覧から取り消してください。</li>
+        </ul>
+      </div>
+
+      <!-- 自分のフラグ一覧 -->
+      <section class="list-block" aria-label="自分のフラグ一覧">
+        <h2>自分のフラグ（<span id="myCount">0</span>件）</h2>
+        <div id="myList"></div>
+      </section>
+
+      <!-- ページ下部：名前と管理者 -->
+      <div class="bottom-block">
+        <div class="name-row">
+          <label for="nameInput">あなたの名前</label>
+          <div class="row">
+            <input id="nameInput" type="text" autocomplete="name" placeholder="名前を入力" />
+            <button type="button" id="nameSaveBtn">変更する</button>
+          </div>
+          <p class="saved-note" id="nameSaved"></p>
+        </div>
+
+        <div>
+          <button type="button" class="admin-open-btn" id="adminOpenBtn">管理者用メニュー</button>
+        </div>
+
+        <div class="admin-panel" id="adminPanel" aria-label="管理者メニュー">
+          <h2>管理者メニュー</h2>
+          <p class="fb-note" id="adminAuthState">合言葉で開きました（子どものいたずら防止用）</p>
+          <div class="row">
+            <button type="button" id="adminLockBtn">閉じてロックする</button>
+          </div>
+          <h3>タイトルの変更</h3>
+          <div class="row">
+            <input id="adminTitleInput" type="text" />
+            <button type="button" id="adminTitleBtn">変更する</button>
+          </div>
+          <p class="saved-note" id="adminTitleSaved"></p>
+          <h3>みんなの立てたフラグ（<span id="adminCount">0</span>件）</h3>
+          <div id="adminList"></div>
+          <h3>みんなで共有する設定（Firebase）</h3>
+          <p class="fb-note" id="fbState">状態を確認中…</p>
+          <p class="fb-note">プロジェクト <strong>nishiki-recycle</strong> の設定はすでにこのページに埋め込まれています。開いた全員の端末が自動で同じ地図に接続し、フラグはリアルタイムで同期されます。下の欄は、別のプロジェクトに切り替えたいときだけ使ってください。</p>
+          <ol class="fb-steps">
+            <li>Firestoreの「ルール」タブに、下のルールが公開されていることを確認してください。</li>
+            <li>別のプロジェクトに切り替える場合は、その firebaseConfig を下の欄に貼って「Firebaseに接続する」を押してください。</li>
+          </ol>
+          <pre>rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /nishiki_flags/{doc} {
+      allow read, write: if true;
+    }
+    match /nishiki_meta/{doc} {
+      allow read, write: if true;
+    }
+  }
+}</pre>
+          <p class="fb-note">※ 管理者メニューは合言葉で開く仕組みです。子どものいたずら防止が目的で、開いた人だけがタイトル変更と一斉クリアを操作できます。</p>
+          <p class="fb-note">※ 下の欄から貼り付けた設定は、このページを開いている間だけ有効です（再読み込みすると埋め込み済みの設定に戻ります）。</p>
+          <p class="fb-note">貼り付ける設定情報の例（apiKey などは公開前提の接続情報で、パスワードではありません）：</p>
+          <textarea id="fbConfigInput" placeholder='const firebaseConfig = { apiKey: "…", authDomain: "…", projectId: "…", appId: "…" };'></textarea>
+          <button type="button" class="fb-connect-btn" id="fbConnectBtn">Firebaseに接続する</button>
+          <p class="saved-note" id="fbSaved"></p>
+          <h3>フラグの一斉クリア</h3>
+          <button type="button" class="clear-btn" id="clearAllBtn">すべてのフラグを消す</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- 名前入力ポップアップ -->
+    <div class="modal-backdrop" id="nameModal">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="nameModalTitle">
+        <h2 id="nameModalTitle">お名前を教えてください</h2>
+        <p>フラグを立てた人が分かるように、最初に名前を入力してください。</p>
+        <input id="modalNameInput" type="text" autocomplete="name" placeholder="例：たけし" />
+        <p class="err" id="modalNameErr"></p>
+        <button type="button" class="go" id="modalNameGo">はじめる</button>
+      </div>
+    </div>
+
+    <!-- 管理者用 合言葉ポップアップ -->
+    <div class="modal-backdrop" id="passphraseModal">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="passphraseModalTitle">
+        <h2 id="passphraseModalTitle">合言葉を入力してください</h2>
+        <p>子どものいたずら防止のため、管理者メニューは合言葉で開きます。大人の方だけ入力してください。</p>
+        <input id="passphraseInput" type="text" autocomplete="off" placeholder="合言葉を入力" />
+        <p class="err" id="passphraseErr"></p>
+        <button type="button" class="go" id="passphraseGo">開く</button>
+        <button type="button" class="cancel" id="passphraseCancel">キャンセル</button>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+    <script>
+      (function () {
+        "use strict";
+
+        var CENTER = [33.2299311, 131.6198944]; // 大分県大分市錦町３丁目
+        // 管理者メニューは合言葉で開く（子どものいたずら防止用）。
+        // PINコードは廃止し、合言葉のみで開けるようにする。
+        var ADMIN_PASSPHRASE = "長浜小学校";
+        var adminUnlocked = false;
+
+        /* Firebase（Firestore）設定。
+           ここに firebaseConfig を埋め込むと、開いた全員の端末が自動で同じ地図に接続します。
+           未設定（null）の間は、この端末の中だけで動きます（共有されません）。
+           設定情報は管理者メニューの「みんなで共有する設定（Firebase）」からも貼り付けできます。 */
+        var FIREBASE_CONFIG = {
+          apiKey: "AIzaSyBEzr_WZU7TUXzFGOaX8Zrd7SdiTHVRoL8",
+          authDomain: "nishiki-recycle.firebaseapp.com",
+          projectId: "nishiki-recycle",
+          storageBucket: "nishiki-recycle.firebasestorage.app",
+          messagingSenderId: "451978918576",
+          appId: "1:451978918576:web:741839146de16294949975"
+        };
+
+        var db = null;
+        var flagsCol = null;
+        var metaDoc = null;
+        var firebaseReady = false;
+        var gotFirstSnapshot = false;
+        var unsubFlags = null;
+        var unsubMeta = null;
+
+        var FLAG_TYPES = {
+          check1: { label: "確認済み（1回目）", color: "#2e9e5b" },
+          check2: { label: "確認済み（2回目）", color: "#2f6fd0" },
+          car:    { label: "車で回収お願い！", color: "#e07f1f" },
+          found:  { label: "ここにあった！（回収済）", color: "#d84f7e" },
+          help:   { label: "応援を頼む！", color: "#d23b3b" }
+        };
+        var TYPE_ORDER = ["check1", "check2", "car", "found", "help"];
+
+        var flags = [];        // {id, type, lat, lng, name, time}
+        var markers = {};      // id -> L.marker
+        var seq = 0;
+        var myName = "";
+        var activeFilter = "all";
+        var map = null;
+        var errorTimer = null;
+
+        var $ = function (id) { return document.getElementById(id); };
+
+        /* ---------- エラー表示（地図の上部） ---------- */
+        function showError(msg) {
+          var el = $("mapError");
+          el.textContent = msg;
+          el.classList.add("show");
+          if (errorTimer) clearTimeout(errorTimer);
+          errorTimer = setTimeout(function () { el.classList.remove("show"); }, 6000);
+        }
+
+        /* ---------- Firebase（みんなで共有） ---------- */
+        function setSyncStatus(mode, text) {
+          var box = $("syncStatus");
+          box.classList.remove("on", "err");
+          if (mode) box.classList.add(mode);
+          $("syncStatusText").textContent = text;
+          var st = $("fbState");
+          if (st) st.textContent = text;
+        }
+
+        function extractConfig(text) {
+          var cfg = {};
+          var re = /(\w+)\s*:\s*"([^"]*)"/g;
+          var m;
+          while ((m = re.exec(text)) !== null) cfg[m[1]] = m[2];
+          return cfg;
+        }
+
+        function initFirebase(cfg) {
+          if (typeof firebase === "undefined" || !firebase.firestore) {
+            setSyncStatus("err", "Firebaseの読み込みに失敗しました。通信環境を確認して、ページを開き直してください。");
+            return false;
+          }
+          if (!cfg || !cfg.apiKey || !cfg.projectId) {
+            setSyncStatus("err", "設定情報が不足しています（apiKey と projectId が必要です）。貼り付け内容を確認してください。");
+            return false;
+          }
+          try {
+            if (!(firebase.apps && firebase.apps.length)) {
+              firebase.initializeApp(cfg);
+            }
+          } catch (e) {
+            setSyncStatus("err", "Firebaseへの接続に失敗しました。設定情報を確認してください。");
+            return false;
+          }
+          db = firebase.firestore();
+          flagsCol = db.collection("nishiki_flags");
+          metaDoc = db.collection("nishiki_meta").doc("settings");
+          firebaseReady = true;
+          gotFirstSnapshot = false;
+          setSyncStatus("", "みんなと共有中（Firebaseへ接続中…）");
+          subscribeFirebase();
+          return true;
+        }
+
+        function renderAdminAuthState() {
+          var el = $("adminAuthState");
+          if (!el) return;
+          el.textContent = adminUnlocked
+            ? "合言葉で開きました（子どものいたずら防止用）"
+            : "合言葉が未確認です";
+        }
+
+        function subscribeFirebase() {
+          if (unsubFlags) unsubFlags();
+          if (unsubMeta) unsubMeta();
+          unsubFlags = flagsCol.onSnapshot(function (snap) {
+            if (!gotFirstSnapshot) {
+              gotFirstSnapshot = true;
+              setSyncStatus("on", "みんなと共有中（Firebase接続済み）— フラグは自動で同期されます");
+            }
+            var next = [];
+            snap.forEach(function (doc) {
+              var d = doc.data();
+              if (d.deleted) return; // 取り消し済みは表示しない
+              next.push({
+                fid: doc.id,
+                id: d.num,
+                type: d.type,
+                lat: d.lat,
+                lng: d.lng,
+                name: d.name,
+                time: d.time
+              });
+            });
+            next.sort(function (a, b) { return a.id - b.id; });
+            // 地図上のピンを作り直して同期する
+            Object.keys(markers).forEach(function (id) {
+              if (map) map.removeLayer(markers[id]);
+            });
+            markers = {};
+            flags = next;
+            seq = flags.reduce(function (mx, f) { return Math.max(mx, f.id || 0); }, 0);
+            flags.forEach(function (f) { addMarker(f); });
+            renderAll();
+          }, function (err) {
+            setSyncStatus("err", "共有データの受信に失敗しました。Firestoreのルール設定を確認してください。");
+          });
+          unsubMeta = metaDoc.onSnapshot(function (doc) {
+            if (doc.exists) {
+              var d = doc.data();
+              if (d && d.title && d.title !== $("pageTitle").textContent) {
+                $("pageTitle").textContent = d.title;
+                document.title = d.title;
+              }
+            }
+          }, function () { /* タイトル同期の失敗は無視 */ });
+        }
+
+        function findFlagById(id) {
+          for (var i = 0; i < flags.length; i++) if (flags[i].id === id) return flags[i];
+          return null;
+        }
+
+        /* ---------- 地図 ---------- */
+        function initMap() {
+          if (typeof L === "undefined") {
+            showError("地図の読み込みに失敗しました。「最新情報に更新」ボタンで読み直してください。");
+            return;
+          }
+          // 周囲約200メートル＋少し余裕を持たせた表示範囲
+          var bounds = L.latLngBounds(
+            [CENTER[0] - 0.0027, CENTER[1] - 0.0033],
+            [CENTER[0] + 0.0027, CENTER[1] + 0.0033]
+          );
+          map = L.map("map", {
+            center: CENTER,
+            zoom: 17,
+            minZoom: 16,
+            maxZoom: 18,
+            maxBounds: bounds,
+            maxBoundsViscosity: 1.0,
+            scrollWheelZoom: true
+          });
+          var gsi = L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png", {
+            attribution: "出典：国土地理院",
+            maxNativeZoom: 18,
+            maxZoom: 18
+          });
+          var osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "© OpenStreetMap contributors",
+            maxNativeZoom: 19,
+            maxZoom: 18
+          });
+          var tileErrors = 0;
+          var switched = false;
+          gsi.on("tileerror", function () {
+            tileErrors++;
+            if (tileErrors >= 4 && !switched) {
+              switched = true;
+              map.removeLayer(gsi);
+              osm.addTo(map);
+              var note = document.querySelector(".map-note");
+              if (note) note.textContent = "OpenStreetMapを表示中";
+            }
+          });
+          gsi.addTo(map);
+        }
+
+        function pinIcon(flag) {
+          var t = FLAG_TYPES[flag.type];
+          return L.divIcon({
+            className: "pin-wrap",
+            html: '<div class="pin" style="background:' + t.color + '"><span>' + flag.id + "</span></div>",
+            iconSize: [30, 30],
+            iconAnchor: [15, 27]
+          });
+        }
+
+        function addMarker(flag) {
+          if (!map) return;
+          var m = L.marker([flag.lat, flag.lng], { icon: pinIcon(flag) });
+          m.bindPopup(
+            "<strong>" + FLAG_TYPES[flag.type].label + "</strong><br>" +
+            escapeHtml(flag.name) + "さん ・ " + flag.time
+          );
+          m.on("click", function () { highlightRow(flag.id); });
+          markers[flag.id] = m;
+          applyFilterToMarker(flag);
+        }
+
+        function applyFilterToMarker(flag) {
+          var m = markers[flag.id];
+          if (!m || !map) return;
+          var show = activeFilter === "all" || activeFilter === flag.type;
+          var onMap = map.hasLayer(m);
+          if (show && !onMap) m.addTo(map);
+          if (!show && onMap) map.removeLayer(m);
+        }
+
+        function refreshMarkers() {
+          flags.forEach(function (f) {
+            var m = markers[f.id];
+            if (m) { m.setIcon(pinIcon(f)); applyFilterToMarker(f); }
+          });
+        }
+
+        /* ---------- 描画：フィルター ---------- */
+        function renderFilters() {
+          var box = $("filters");
+          box.innerHTML = "";
+          var allBtn = document.createElement("button");
+          allBtn.type = "button";
+          allBtn.className = "chip";
+          allBtn.setAttribute("aria-pressed", activeFilter === "all" ? "true" : "false");
+          allBtn.innerHTML = "すべて <span class=\"count\">" + flags.length + "</span>";
+          allBtn.addEventListener("click", function () { setFilter("all"); });
+          box.appendChild(allBtn);
+          TYPE_ORDER.forEach(function (key) {
+            var t = FLAG_TYPES[key];
+            var n = flags.filter(function (f) { return f.type === key; }).length;
+            var b = document.createElement("button");
+            b.type = "button";
+            b.className = "chip";
+            b.setAttribute("aria-pressed", activeFilter === key ? "true" : "false");
+            b.innerHTML = '<span class="dot" style="background:' + t.color + '"></span>' +
+              t.label + ' <span class="count">' + n + "</span>";
+            b.addEventListener("click", function () { setFilter(key); });
+            box.appendChild(b);
+          });
+        }
+
+        function setFilter(key) {
+          activeFilter = key;
+          renderFilters();
+          refreshMarkers();
+          renderMyList();
+        }
+
+        /* ---------- 描画：依頼バナー ---------- */
+        function renderAlerts() {
+          var box = $("alerts");
+          box.innerHTML = "";
+          flags.forEach(function (f) {
+            if (f.type !== "help" && f.type !== "car") return;
+            var isHelp = f.type === "help";
+            var wrap = document.createElement("div");
+            wrap.className = "alert " + (isHelp ? "alert-help" : "alert-car");
+
+            var main = document.createElement("button");
+            main.type = "button";
+            main.className = "alert-main";
+            main.innerHTML =
+              '<span class="alert-title">' + (isHelp ? "応援依頼があります" : "車での回収依頼あり。") + "</span>" +
+              '<span class="alert-meta">No.' + f.id + " ・ " + escapeHtml(f.name) + "さん ・ " + f.time + "（タップで地図が移動します）</span>";
+            main.addEventListener("click", function () { focusFlag(f); });
+
+            var done = document.createElement("button");
+            done.type = "button";
+            done.className = "alert-done";
+            done.textContent = isHelp ? "回収しました。" : "回収しました";
+            done.addEventListener("click", function () { resolveFlag(f.id); });
+
+            wrap.appendChild(main);
+            wrap.appendChild(done);
+            box.appendChild(wrap);
+          });
+        }
+
+        function focusFlag(f) {
+          if (map) {
+            if (activeFilter !== "all" && activeFilter !== f.type) setFilter("all");
+            map.flyTo([f.lat, f.lng], 18, { duration: 0.7 });
+            var m = markers[f.id];
+            if (m) setTimeout(function () { m.openPopup(); }, 750);
+          }
+          $("mapShell").scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+
+        function resolveFlag(id) {
+          var f = findFlag(id);
+          if (!f) return;
+          if (firebaseReady && f.fid) {
+            flagsCol.doc(f.fid).update({ type: "found" }).catch(function () {
+              showError("共有の更新に失敗しました。通信環境を確認してください。");
+            });
+            return;
+          }
+          f.type = "found";
+          renderAll();
+        }
+
+        /* ---------- 描画：自分のフラグ一覧 ---------- */
+        function renderMyList() {
+          var box = $("myList");
+          var mine = flags.filter(function (f) { return f.name === myName; });
+          $("myCount").textContent = mine.length;
+          var shown = mine.filter(function (f) {
+            return activeFilter === "all" || activeFilter === f.type;
+          });
+          box.innerHTML = "";
+          if (mine.length === 0) {
+            box.innerHTML = '<p class="empty-note">まだフラグを立てていません。地図の中心を合わせて、下のボタンから立ててみてください。</p>';
+            return;
+          }
+          if (shown.length === 0) {
+            box.innerHTML = '<p class="empty-note">この種類のフラグはありません。</p>';
+            return;
+          }
+          shown.forEach(function (f) {
+            var row = document.createElement("div");
+            row.className = "flag-row";
+            row.id = "row-" + f.id;
+
+            var badge = document.createElement("span");
+            badge.className = "badge";
+            badge.style.background = FLAG_TYPES[f.type].color;
+            badge.textContent = f.id;
+
+            var sel = document.createElement("select");
+            sel.setAttribute("aria-label", "フラグの種類を変更");
+            TYPE_ORDER.forEach(function (key) {
+              var opt = document.createElement("option");
+              opt.value = key;
+              opt.textContent = FLAG_TYPES[key].label;
+              if (key === f.type) opt.selected = true;
+              sel.appendChild(opt);
+            });
+            sel.addEventListener("change", function () {
+              if (firebaseReady && f.fid) {
+                flagsCol.doc(f.fid).update({ type: sel.value }).catch(function () {
+                  showError("共有の更新に失敗しました。通信環境を確認してください。");
+                });
+                return;
+              }
+              f.type = sel.value;
+              renderAll();
+            });
+
+            var meta = document.createElement("span");
+            meta.className = "meta";
+            meta.textContent = f.time;
+
+            var del = document.createElement("button");
+            del.type = "button";
+            del.className = "del-btn";
+            del.textContent = "取り消し";
+            del.addEventListener("click", function () { removeFlag(f.id); });
+
+            row.appendChild(badge);
+            row.appendChild(sel);
+            row.appendChild(meta);
+            row.appendChild(del);
+            box.appendChild(row);
+          });
+        }
+
+        function highlightRow(id) {
+          var row = $("row-" + id);
+          if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+
+        /* ---------- 描画：管理者 ---------- */
+        function renderAdmin() {
+          $("adminCount").textContent = flags.length;
+          var box = $("adminList");
+          box.innerHTML = "";
+          if (flags.length === 0) {
+            box.innerHTML = '<p class="empty-note">まだフラグがありません。</p>';
+            return;
+          }
+          flags.forEach(function (f) {
+            var div = document.createElement("div");
+            div.className = "admin-flag";
+            div.innerHTML =
+              '<span class="badge" style="background:' + FLAG_TYPES[f.type].color + ';width:24px;height:24px;font-size:.78rem;">' + f.id + "</span>" +
+              '<span class="t">' + FLAG_TYPES[f.type].label + "</span>" +
+              '<span class="m">' + escapeHtml(f.name) + "さん ・ " + f.time + "</span>";
+            box.appendChild(div);
+          });
+        }
+
+        function renderAll() {
+          renderFilters();
+          renderAlerts();
+          renderMyList();
+          renderAdmin();
+          refreshMarkers();
+        }
+
+        /* ---------- フラグ操作 ---------- */
+        function findFlag(id) {
+          for (var i = 0; i < flags.length; i++) if (flags[i].id === id) return flags[i];
+          return null;
+        }
+
+        function nowTime() {
+          var d = new Date();
+          var hh = ("0" + d.getHours()).slice(-2);
+          var mm = ("0" + d.getMinutes()).slice(-2);
+          return hh + ":" + mm;
+        }
+
+        function placeFlag(type) {
+          if (!myName) {
+            openNameModal();
+            showError("先に名前を入力してください。");
+            return;
+          }
+          if (!map) {
+            showError("地図の準備ができていません。少し待ってから、もう一度押してください。");
+            return;
+          }
+          var c = map.getCenter();
+          seq++;
+          var flag = {
+            id: seq,
+            type: type,
+            lat: c.lat,
+            lng: c.lng,
+            name: myName,
+            time: nowTime()
+          };
+          if (firebaseReady) {
+            flagsCol.add({
+              num: flag.id,
+              type: flag.type,
+              lat: flag.lat,
+              lng: flag.lng,
+              name: flag.name,
+              time: flag.time,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            }).catch(function () {
+              showError("フラグを共有できませんでした。通信環境を確認してください。");
+            });
+            return; // 表示はFirestoreからの同期で更新される
+          }
+          flags.push(flag);
+          addMarker(flag);
+          renderAll();
+        }
+
+        function removeFlag(id) {
+          var f = findFlag(id);
+          if (firebaseReady && f && f.fid) {
+            // 取り消しは「取消済み」印の更新で共有する
+            flagsCol.doc(f.fid).update({ deleted: true }).catch(function () {
+              showError("取り消しを共有できませんでした。通信環境を確認してください。");
+            });
+            return; // 表示はFirestoreからの同期で更新される
+          }
+          var m = markers[id];
+          if (m && map) map.removeLayer(m);
+          delete markers[id];
+          flags = flags.filter(function (f) { return f.id !== id; });
+          renderAll();
+        }
+
+        /* ---------- 名前 ---------- */
+        function setName(name) {
+          myName = name;
+          $("greeting").textContent = "今日はよろしくね！" + name + "さん";
+          $("nameInput").value = name;
+          renderMyList();
+          renderAdmin();
+        }
+
+        function openNameModal() { $("nameModal").classList.add("open"); }
+        function closeNameModal() { $("nameModal").classList.remove("open"); }
+
+        /* ---------- ユーティリティ ---------- */
+        function escapeHtml(s) {
+          return String(s).replace(/[&<>"']/g, function (ch) {
+            return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch];
+          });
+        }
+
+        /* ---------- 初期化 ---------- */
+        function buildFlagButtons() {
+          var box = $("flagButtons");
+          TYPE_ORDER.forEach(function (key) {
+            var t = FLAG_TYPES[key];
+            var b = document.createElement("button");
+            b.type = "button";
+            b.className = "flag-btn" + (key === "help" ? " help" : "");
+            b.style.background = t.color;
+            b.innerHTML = t.label + ' <span class="n" data-count="' + key + '">0</span>';
+            b.addEventListener("click", function () { placeFlag(key); });
+            box.appendChild(b);
+          });
+        }
+
+        function updateButtonCounts() {
+          TYPE_ORDER.forEach(function (key) {
+            var el = document.querySelector('[data-count="' + key + '"]');
+            if (el) el.textContent = flags.filter(function (f) { return f.type === key; }).length;
+          });
+        }
+
+        var _renderAll = renderAll;
+        renderAll = function () {
+          _renderAll();
+          updateButtonCounts();
+        };
+
+        function init() {
+          initMap();
+          buildFlagButtons();
+          renderAll();
+
+          /* Firebase：設定が埋め込まれていれば自動接続、なければ未設定の案内 */
+          if (FIREBASE_CONFIG) {
+            setSyncStatus("", "みんなと共有中（Firebaseへ接続中…）");
+            initFirebase(FIREBASE_CONFIG);
+          } else {
+            setSyncStatus("", "この端末だけの表示です（Firebase未設定）— 共有するにはページ下部の管理者メニューで設定してください");
+          }
+          $("fbConnectBtn").addEventListener("click", function () {
+            var cfg = extractConfig($("fbConfigInput").value);
+            if (initFirebase(cfg)) {
+              $("fbSaved").textContent = "接続しました！（この接続は再読み込みするまで有効です）";
+            } else {
+              $("fbSaved").textContent = "";
+            }
+          });
+
+          $("refreshBtn").addEventListener("click", function () { location.reload(); });
+
+          $("modalNameGo").addEventListener("click", function () {
+            var v = $("modalNameInput").value.trim();
+            if (!v) { $("modalNameErr").textContent = "名前を入力してください。"; return; }
+            $("modalNameErr").textContent = "";
+            setName(v);
+            closeNameModal();
+          });
+          $("modalNameInput").addEventListener("keydown", function (e) {
+            if (e.key === "Enter") $("modalNameGo").click();
+          });
+
+          $("nameSaveBtn").addEventListener("click", function () {
+            var v = $("nameInput").value.trim();
+            if (!v) { showError("名前が空です。名前を入力してください。"); return; }
+            setName(v);
+            $("nameSaved").textContent = "名前を変更しました。";
+            setTimeout(function () { $("nameSaved").textContent = ""; }, 3000);
+          });
+
+          /* 管理者（合言葉で開く — 子どものいたずら防止用、PINは廃止） */
+          function openAdmin() {
+            $("passphraseModal").classList.remove("open");
+            $("adminTitleInput").value = $("pageTitle").textContent;
+            $("adminPanel").classList.add("open");
+            renderAdmin();
+            renderAdminAuthState();
+            $("adminPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+          function openPassphraseModal() {
+            $("passphraseErr").textContent = "";
+            $("passphraseInput").value = "";
+            $("passphraseModal").classList.add("open");
+            setTimeout(function () { $("passphraseInput").focus(); }, 100);
+          }
+          $("adminOpenBtn").addEventListener("click", function () {
+            if (!adminUnlocked) { openPassphraseModal(); return; }
+            openAdmin();
+          });
+          $("adminLockBtn").addEventListener("click", function () {
+            adminUnlocked = false;
+            $("adminPanel").classList.remove("open");
+            renderAdminAuthState();
+            showError("管理者メニューを閉じてロックしました。");
+          });
+          $("passphraseCancel").addEventListener("click", function () {
+            $("passphraseModal").classList.remove("open");
+          });
+          function tryPassphrase() {
+            var v = $("passphraseInput").value.trim();
+            if (!v) { $("passphraseErr").textContent = "合言葉を入力してください。"; return; }
+            if (v !== ADMIN_PASSPHRASE) {
+              $("passphraseErr").textContent = "合言葉が違います。もう一度入力してください。";
+              return;
+            }
+            $("passphraseErr").textContent = "";
+            adminUnlocked = true;
+            openAdmin();
+          }
+          $("passphraseGo").addEventListener("click", tryPassphrase);
+          $("passphraseInput").addEventListener("keydown", function (e) {
+            if (e.key === "Enter") tryPassphrase();
+          });
+
+          $("adminTitleBtn").addEventListener("click", function () {
+            var v = $("adminTitleInput").value.trim();
+            if (!v) { showError("タイトルが空です。"); return; }
+            if (!adminUnlocked) {
+              showError("タイトルの変更には合言葉の入力が必要です。");
+              openPassphraseModal();
+              return;
+            }
+            $("pageTitle").textContent = v;
+            document.title = v;
+            if (firebaseReady) {
+              metaDoc.set({ title: v }, { merge: true }).catch(function () {
+                showError("タイトルの共有に失敗しました。通信環境を確認してください。");
+              });
+            }
+            $("adminTitleSaved").textContent = "タイトルを変更しました。";
+            setTimeout(function () { $("adminTitleSaved").textContent = ""; }, 3000);
+          });
+
+          var clearBtn = $("clearAllBtn");
+          var confirmClear = false;
+          clearBtn.addEventListener("click", function () {
+            if (!confirmClear) {
+              confirmClear = true;
+              clearBtn.textContent = "本当にすべてのフラグを消しますか？（もう一度押すと消えます）";
+              clearBtn.classList.add("confirm");
+              setTimeout(function () {
+                confirmClear = false;
+                clearBtn.textContent = "すべてのフラグを消す";
+                clearBtn.classList.remove("confirm");
+              }, 5000);
+              return;
+            }
+            confirmClear = false;
+            clearBtn.textContent = "すべてのフラグを消す";
+            clearBtn.classList.remove("confirm");
+            if (!adminUnlocked) {
+              showError("フラグの一斉クリアには合言葉の入力が必要です。");
+              openPassphraseModal();
+              return;
+            }
+            if (firebaseReady) {
+              var batch = db.batch();
+              flags.forEach(function (f) {
+                if (f.fid) batch.delete(flagsCol.doc(f.fid));
+              });
+              batch.commit().catch(function () {
+                showError("一斉クリアを共有できませんでした。通信環境を確認してください。");
+              });
+              return; // 表示はFirestoreからの同期で更新される
+            }
+            Object.keys(markers).forEach(function (id) {
+              if (map) map.removeLayer(markers[id]);
+            });
+            markers = {};
+            flags = [];
+            renderAll();
+          });
+
+          openNameModal();
+          setTimeout(function () { $("modalNameInput").focus(); }, 300);
+        }
+
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", init);
+        } else {
+          init();
+        }
+      })();
+    </script>
+  </body>
+</html>
