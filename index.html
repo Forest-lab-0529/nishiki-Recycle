@@ -3,51 +3,35 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="color-scheme" content="light" />
     <link rel="icon" href="data:," />
     <title>錦町３丁目　資源回収！（11/27）</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
       :root {
-        --bg: #f4f6f1;
+        --bg: #ffffff;
         --surface: #ffffff;
-        --surface-2: #eef1e8;
+        --surface-2: #f1f4ec;
         --ink: #22301f;
         --ink-soft: #5a6a55;
         --line: #d7ddcd;
         --accent: #2e7d46;
         --accent-ink: #ffffff;
         --danger: #c62f2f;
-        --warn-bg: #fdecec;
-        --warn-line: #f2b8b8;
-        --warn-ink: #8f1d1d;
-        --car-bg: #fdf1e0;
-        --car-line: #f0cf9e;
-        --car-ink: #7c4a08;
+        --warn-bg: #ffd9e4;
+        --warn-line: #f78fb3;
+        --warn-ink: #7a1030;
+        --warn-btn: #e75480;
+        --car-bg: #ffe3b3;
+        --car-line: #f5b95e;
+        --car-ink: #6e3d00;
+        --car-btn: #e8862e;
         --shadow: 0 2px 10px rgba(34, 48, 31, .14);
         --check1: #2e9e5b;
         --check2: #2f6fd0;
         --car: #e07f1f;
         --found: #d84f7e;
         --help: #d23b3b;
-      }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: #161a14;
-          --surface: #21261e;
-          --surface-2: #2a3026;
-          --ink: #e8eee1;
-          --ink-soft: #a9b69e;
-          --line: #3c4536;
-          --accent: #3f9e5f;
-          --warn-bg: #3d1f1f;
-          --warn-line: #6e3535;
-          --warn-ink: #f3c1c1;
-          --car-bg: #3a2c17;
-          --car-line: #6e5527;
-          --car-ink: #f0d3a0;
-          --shadow: 0 2px 10px rgba(0, 0, 0, .45);
-        }
       }
       * { box-sizing: border-box; }
       html { -webkit-text-size-adjust: 100%; }
@@ -115,10 +99,10 @@
         padding: 8px 14px; font-weight: 800; font-size: .92rem;
         background: transparent; min-width: 7.2em;
       }
-      .alert-help { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-ink); }
-      .alert-help .alert-done { border-color: var(--warn-line); color: var(--warn-ink); }
-      .alert-car { background: var(--car-bg); border-color: var(--car-line); color: var(--car-ink); }
-      .alert-car .alert-done { border-color: var(--car-line); color: var(--car-ink); }
+      .alert-help { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-ink); box-shadow: var(--shadow); }
+      .alert-help .alert-done { border-color: var(--warn-line); background: var(--warn-btn); color: #fff; }
+      .alert-car { background: var(--car-bg); border-color: var(--car-line); color: var(--car-ink); box-shadow: var(--shadow); }
+      .alert-car .alert-done { border-color: var(--car-line); background: var(--car-btn); color: #fff; }
 
       /* 地図 */
       .map-shell { position: relative; border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); border: 1px solid var(--line); }
@@ -278,34 +262,7 @@
       }
       .leaflet-container { font-family: inherit; }
 
-      /* 共有の接続状態 */
-      .sync-status {
-        display: flex; align-items: center; gap: 7px;
-        font-size: .85rem; font-weight: 700;
-        border: 1.5px solid var(--line); border-radius: 999px;
-        background: var(--surface); padding: 6px 12px; margin: 0 0 12px;
-      }
-      .sync-status .sdot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: #9aa48f; }
-      .sync-status.on { border-color: var(--accent); }
-      .sync-status.on .sdot { background: var(--accent); }
-      .sync-status.err { border-color: var(--warn-line); background: var(--warn-bg); color: var(--warn-ink); }
-      .sync-status.err .sdot { background: var(--danger); }
-
-      /* Firebase設定（管理者メニュー内） */
-      .fb-steps { font-size: .88rem; margin: 0 0 8px; padding-left: 1.3em; }
-      .fb-steps li { margin: 4px 0; }
       .fb-note { font-size: .82rem; color: var(--ink-soft); margin: 6px 0 0; }
-      .admin-panel textarea {
-        width: 100%; border: 1.5px solid var(--line); border-radius: 8px;
-        background: var(--surface); padding: 8px 10px; font: inherit;
-        font-size: .82rem; min-height: 7.5em; resize: vertical;
-      }
-      .admin-panel pre {
-        background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px;
-        padding: 8px 10px; font-size: .75rem; overflow-x: auto; margin: 6px 0 0;
-        white-space: pre-wrap; word-break: break-all;
-      }
-      .fb-connect-btn { width: 100%; margin-top: 8px; }
     </style>
   </head>
   <body>
@@ -314,9 +271,6 @@
         <h1 id="pageTitle">錦町３丁目　資源回収！（11/27）</h1>
         <p class="greeting" id="greeting">今日はよろしくね！</p>
       </header>
-
-      <!-- みんなとの共有状態 -->
-      <p class="sync-status" id="syncStatus" role="status"><span class="sdot" aria-hidden="true"></span><span id="syncStatusText">共有の準備中…</span></p>
 
       <!-- フィルター（画面上部） -->
       <p class="filter-label">フラグの種類で絞り込み</p>
@@ -341,6 +295,7 @@
       <div class="howto">
         <h2>使い方</h2>
         <ul>
+          <li>確認したポイントを印付けてください。だいたいで大丈夫です</li>
           <li>地図を動かして十字の中心を合わせ、ボタンを押すと、その中心点にフラグが立ちます。</li>
           <li>立てたフラグは、そのまま消さなくて大丈夫です。</li>
           <li>間違えて立ててしまったフラグは、画面下部の「自分のフラグ」一覧から取り消してください。</li>
@@ -382,30 +337,6 @@
           <p class="saved-note" id="adminTitleSaved"></p>
           <h3>みんなの立てたフラグ（<span id="adminCount">0</span>件）</h3>
           <div id="adminList"></div>
-          <h3>みんなで共有する設定（Firebase）</h3>
-          <p class="fb-note" id="fbState">状態を確認中…</p>
-          <p class="fb-note">プロジェクト <strong>nishiki-recycle</strong> の設定はすでにこのページに埋め込まれています。開いた全員の端末が自動で同じ地図に接続し、フラグはリアルタイムで同期されます。下の欄は、別のプロジェクトに切り替えたいときだけ使ってください。</p>
-          <ol class="fb-steps">
-            <li>Firestoreの「ルール」タブに、下のルールが公開されていることを確認してください。</li>
-            <li>別のプロジェクトに切り替える場合は、その firebaseConfig を下の欄に貼って「Firebaseに接続する」を押してください。</li>
-          </ol>
-          <pre>rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /nishiki_flags/{doc} {
-      allow read, write: if true;
-    }
-    match /nishiki_meta/{doc} {
-      allow read, write: if true;
-    }
-  }
-}</pre>
-          <p class="fb-note">※ 管理者メニューは合言葉で開く仕組みです。子どものいたずら防止が目的で、開いた人だけがタイトル変更と一斉クリアを操作できます。</p>
-          <p class="fb-note">※ 下の欄から貼り付けた設定は、このページを開いている間だけ有効です（再読み込みすると埋め込み済みの設定に戻ります）。</p>
-          <p class="fb-note">貼り付ける設定情報の例（apiKey などは公開前提の接続情報で、パスワードではありません）：</p>
-          <textarea id="fbConfigInput" placeholder='const firebaseConfig = { apiKey: "…", authDomain: "…", projectId: "…", appId: "…" };'></textarea>
-          <button type="button" class="fb-connect-btn" id="fbConnectBtn">Firebaseに接続する</button>
-          <p class="saved-note" id="fbSaved"></p>
           <h3>フラグの一斉クリア</h3>
           <button type="button" class="clear-btn" id="clearAllBtn">すべてのフラグを消す</button>
         </div>
@@ -473,7 +404,7 @@ service cloud.firestore {
           check1: { label: "確認済み（1回目）", color: "#2e9e5b" },
           check2: { label: "確認済み（2回目）", color: "#2f6fd0" },
           car:    { label: "車で回収お願い！", color: "#e07f1f" },
-          found:  { label: "ここにあった！（回収済）", color: "#d84f7e" },
+          found:  { label: "回収済", color: "#d84f7e" },
           help:   { label: "応援を頼む！", color: "#d23b3b" }
         };
         var TYPE_ORDER = ["check1", "check2", "car", "found", "help"];
@@ -498,13 +429,10 @@ service cloud.firestore {
         }
 
         /* ---------- Firebase（みんなで共有） ---------- */
+        /* 「共有中（接続中）」などの通常文言は画面に出さない。
+           ただし接続エラーだけは、地図上部のエラー表示で知らせる。 */
         function setSyncStatus(mode, text) {
-          var box = $("syncStatus");
-          box.classList.remove("on", "err");
-          if (mode) box.classList.add(mode);
-          $("syncStatusText").textContent = text;
-          var st = $("fbState");
-          if (st) st.textContent = text;
+          if (mode === "err" && text) showError(text);
         }
 
         function extractConfig(text) {
@@ -994,15 +922,6 @@ service cloud.firestore {
           } else {
             setSyncStatus("", "この端末だけの表示です（Firebase未設定）— 共有するにはページ下部の管理者メニューで設定してください");
           }
-          $("fbConnectBtn").addEventListener("click", function () {
-            var cfg = extractConfig($("fbConfigInput").value);
-            if (initFirebase(cfg)) {
-              $("fbSaved").textContent = "接続しました！（この接続は再読み込みするまで有効です）";
-            } else {
-              $("fbSaved").textContent = "";
-            }
-          });
-
           $("refreshBtn").addEventListener("click", function () { location.reload(); });
 
           $("modalNameGo").addEventListener("click", function () {
