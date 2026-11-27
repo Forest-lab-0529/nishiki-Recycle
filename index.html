@@ -313,7 +313,7 @@
         <div class="name-row">
           <label for="nameInput">あなたの名前</label>
           <div class="row">
-            <input id="nameInput" type="text" autocomplete="name" placeholder="名前を入力" />
+            <input id="nameInput" type="text" autocomplete="name" placeholder="例：山田　母" />
             <button type="button" id="nameSaveBtn">変更する</button>
           </div>
           <p class="saved-note" id="nameSaved"></p>
@@ -348,7 +348,7 @@
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="nameModalTitle">
         <h2 id="nameModalTitle">お名前を教えてください</h2>
         <p>フラグを立てた人が分かるように、最初に名前を入力してください。</p>
-        <input id="modalNameInput" type="text" autocomplete="name" placeholder="例：たけし" />
+        <input id="modalNameInput" type="text" autocomplete="name" placeholder="例：山田　母" />
         <p class="err" id="modalNameErr"></p>
         <button type="button" class="go" id="modalNameGo">はじめる</button>
       </div>
@@ -659,7 +659,7 @@
             main.className = "alert-main";
             main.innerHTML =
               '<span class="alert-title">' + (isHelp ? "応援依頼があります" : "車での回収依頼あり。") + "</span>" +
-              '<span class="alert-meta">No.' + f.id + " ・ " + escapeHtml(f.name) + "さん ・ " + f.time + "（タップで地図が移動します）</span>";
+              '<span class="alert-meta">No.' + f.id + " ・ " + escapeHtml(f.name) + "さん ・ " + f.time + "（タップで地図表示）</span>";
             main.addEventListener("click", function () { focusFlag(f); });
 
             var done = document.createElement("button");
@@ -864,8 +864,22 @@
         }
 
         /* ---------- 名前 ---------- */
+        var NAME_STORAGE_KEY = "nishiki_user_name";
+        function loadSavedName() {
+          try {
+            return (localStorage.getItem(NAME_STORAGE_KEY) || "").trim();
+          } catch (e) {
+            return "";
+          }
+        }
+        function persistName(name) {
+          try {
+            localStorage.setItem(NAME_STORAGE_KEY, name);
+          } catch (e) { /* 保存できない環境では毎回入力になる */ }
+        }
         function setName(name) {
           myName = name;
+          persistName(name);
           $("greeting").textContent = "今日はよろしくね！" + name + "さん";
           $("nameInput").value = name;
           renderMyList();
@@ -1046,8 +1060,13 @@
             renderAll();
           });
 
-          openNameModal();
-          setTimeout(function () { $("modalNameInput").focus(); }, 300);
+          var savedName = loadSavedName();
+          if (savedName) {
+            setName(savedName);
+          } else {
+            openNameModal();
+            setTimeout(function () { $("modalNameInput").focus(); }, 300);
+          }
         }
 
         if (document.readyState === "loading") {
